@@ -10,9 +10,10 @@ var users = require('./app_server/routes/users');
 
 var app = express();
 
-app.listen(3000, function () {
-   console.log("express has started on port 3000");
-});
+// app.listen(3000, function () {
+//    console.log("express has started on port 3000");
+// });
+app.listen(process.env.PORT || 5000)
 
 // view engine setup
 app.set('views', path.join(__dirname, 'app_server', 'views'));
