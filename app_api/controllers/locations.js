@@ -26,28 +26,30 @@ var theEarth = (function(){
 module.exports.locationsListByDistance = function(req, res){
   var lng = parseFloat(req.query.lng);
   var lat = parseFloat(req.query.lat);
+  var maxDistance = parseFloat(req.query.maxDistance);
   var point = {
     type: "Point",
     coordinates: [lng, lat]
   };
   var geoOptions = {
     spherical: true,
-    maxDistance: theEarth.getRadsFromDistance(20),
+    maxDistance: 100 * 1000,
     num: 10
   };
-  if(!lng || !lat){
-    sendJsonResponse(res, 404, {"message" : "lng and lat params are required"});
+  if((!lng && lng !== 0) || (!lat && lat !== 0) || !maxDistance){
+    sendJsonResponse(res, 404, {"message" : "lng,lat and maxDistance params are required"});
     return;
   }
 
   Loc.geoNear(point, geoOptions, function(err, results, stats){
     var locations = [];
     if(err){
+      console.log('geonear error', err);
       sendJsonResponse(res, 404, err);
     } else{
       results.forEach(function(doc){
         locations.push({
-          distance: theEarth.getDistanceFromRads(doc.dis),
+          distance: doc.dis,
           name: doc.obj.name,
           address: doc.obj.address,
           rating: doc.obj.rating,
@@ -104,5 +106,57 @@ module.exports.locationsReadOne = function(req, res){
   }
 };
 
-module.exports.LocationsUpdateOne = function(req, res){sendJsonResponse(res, 200, {"status":"success"})};
-module.exports.locationsDeleteOne = function(req, res){sendJsonResponse(res, 200, {"status":"success"})};
+// Update one location
+module.exports.LocationsUpdateOne = function(req, res){
+  if(!req.params.locationid){
+    sendJsonResponse(res, 404, {"message" : "locationid is required"});
+    return;
+  }
+  Loc.findById(req.params.locationid).select('-reviews -rating').exec(function(err,location){ // ** -value == everything but this value. **
+     if(!location){
+       sendJsonResponse(res, 404, {"message": "locationid not found"});
+       return;
+     } else if(err){
+       sendJsonResponse(res, 400, err);
+       return;
+     }
+     location.name = req.body.name;
+     location.address = req.body.address;
+     location.facilities = req.body.facilities.split(",");
+     location.coords = [parseFloat(req.body.lng), parseFloat(res.body.lat)];
+     location.openingTimes = [{
+       days: req.body.days1,
+       opening: req.body.opening1,
+       closing: req.body.closing1,
+       closed: req.body.closed1,
+     },{
+       days: req.body.days2,
+       opening: req.body.opening2,
+       closing: req.body.closing2,
+       closed: req.body.closed2,
+     }];
+     location.save(function(){
+       if(err){
+         sendJsonResponse(res, 404, err);
+       }  else{
+         sendJsonResponse(res, 200, location);
+       }
+     });
+   }
+ );
+};
+
+module.exports.locationsDeleteOne = function(req, res){
+  var locationid = req.params.locationid;
+  if(locationid){
+    Loc.findByIdAndRemove(locationid).exec(function(err, location){
+       if(err){
+         sendJsonResponse(res, 404, err);
+         return;
+       }
+       sendJsonResponse(res, 204, null);
+    });
+  }else{
+    sendJsonResponse(res, 404, {"message": "No locationid"});
+  }
+};
